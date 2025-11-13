@@ -109,23 +109,35 @@ pipeline {
 
 
     stage('Trigger ArgoCD Sync') {
-      steps {
-        script {
-          withCredentials([string(credentialsId: 'argocd-token', variable: 'ARGO_TOKEN')]) {
-            sh """
-              echo "🚀 Triggering ArgoCD sync for ${ARGOCD_APP_NAME}..."
-              argocd login ${ARGOCD_SERVER} --grpc-web --username admin --password "${ARGO_TOKEN}" --insecure || true
-              argocd app sync ${ARGOCD_APP_NAME} --server ${ARGOCD_SERVER} || true
-              argocd app wait ${ARGOCD_APP_NAME} --server ${ARGOCD_SERVER} --health --timeout 300
-            """
-          }
-        }
+  steps {
+    script {
+      withCredentials([string(credentialsId: 'argocd-token', variable: 'ARGO_TOKEN')]) {
+        sh '''
+          echo "🚀 Triggering ArgoCD sync for ${ARGOCD_APP_NAME}..."
+
+          # Sync the application
+          argocd app sync ${ARGOCD_APP_NAME} \
+            --server ${ARGOCD_SERVER} \
+            --grpc-web \
+            --auth-token $ARGO_TOKEN \
+            --insecure
+
+          # Wait until the app becomes healthy
+          argocd app wait ${ARGOCD_APP_NAME} \
+            --server ${ARGOCD_SERVER} \
+            --grpc-web \
+            --auth-token $ARGO_TOKEN \
+            --insecure \
+            --health --timeout 300
+        '''
       }
     }
   }
 
-  post {
-    success { echo "✅ ArgoCD sync completed." }
-    failure { echo "❌ ArgoCD sync failed." }
-  }
+
+ post {
+  success { echo "✅ ArgoCD sync completed." }
+  failure { echo "❌ ArgoCD sync failed." }
+ }
+
 }
