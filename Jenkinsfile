@@ -9,6 +9,10 @@ pipeline {
     APP_VERSION      = '1.0.0' // temporary, override if needed
     FRONTEND_CHANGED = 'true'
     BACKEND_CHANGED  = 'true'
+    K8S_MANIFEST_DIR = 'k8s'
+    GIT_CRED_ID      = 'git_access_cred'
+    GIT_USER_NAME    = 'Nareshgundavelli'
+    GIT_USER_EMAIL   = 'nareshgundavelli09@gmail.com'
   }
 
   stages {
@@ -72,10 +76,36 @@ pipeline {
         }
       }
     }
+  
+
+  
+
+   stage('Update K8s Manifests') {
+      steps {
+        script {
+          if (env.FRONTEND_CHANGED == "true") {
+            sh "yq e -i '.spec.template.spec.containers[0].image = \"${DOCKER_REPO}:frontend-${APP_VERSION}\"' ${K8S_MANIFEST_DIR}/frontend-deployment.yaml"
+          }
+          if (env.BACKEND_CHANGED == "true") {
+            sh "yq e -i '.spec.template.spec.containers[0].image = \"${DOCKER_REPO}:backend-${APP_VERSION}\"' ${K8S_MANIFEST_DIR}/backend-deployment.yaml"
+          }
+
+          withCredentials([usernamePassword(credentialsId: env.GIT_CRED_ID, usernameVariable: 'GIT_USER', passwordVariable: 'GIT_PASS')]) {
+            sh """
+              git config user.name "${GIT_USER_NAME}"
+              git config user.email "${GIT_USER_EMAIL}"
+              git add ${K8S_MANIFEST_DIR}/*.yaml
+              git commit -m "chore: update images to v${APP_VERSION}" || echo "No changes to commit"
+              git push https://${GIT_USER}:${GIT_PASS}@github.com/Nareshgundavelli/kubernetes-.git main
+            """
+          }
+        }
+      }
+    }
   }
 
   post {
-    success { echo "✅ Docker images built and pushed." }
-    failure { echo "❌ Docker build stage failed." }
+    success { echo "✅ Kubernetes manifests updated." }
+    failure { echo "❌ K8s manifest update failed." }
   }
 }
